@@ -9,9 +9,12 @@ use crate::speedtest_csv::SpeedTestCsvResult;
 use chrono::Utc;
 use clap::Parser;
 use std::io::{self, Write};
-use tracing::info;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 use url::Url;
+
+#[cfg(feature = "log")]
+use tracing::info;
+#[cfg(feature = "log")]
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -59,6 +62,8 @@ struct Cli {
 }
 
 fn main() -> Result<(), error::SpeedTestError> {
+
+    #[cfg(feature = "log")]
     tracing_subscriber::registry()
         .with(fmt::layer())
         .with(EnvFilter::from_default_env())
@@ -145,9 +150,11 @@ fn main() -> Result<(), error::SpeedTestError> {
             println!("Selecting best server based on latency...");
         }
 
+        #[cfg(feature = "log")]
         info!("Five Closest Servers");
         server_list_sorted.truncate(5);
         for _server in &server_list_sorted {
+            #[cfg(feature = "log")]
             info!("Close Server: {_server:?}");
         }
     }
@@ -287,6 +294,8 @@ fn main() -> Result<(), error::SpeedTestError> {
     }
 
     if matches.share && !machine_format {
+
+        #[cfg(feature = "log")]
         info!("Share Request {speedtest_result:?}",);
         println!(
             "Share results: {}",

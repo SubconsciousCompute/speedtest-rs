@@ -7,6 +7,8 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
+
+#[cfg(feature = "log")]
 use tracing::info;
 
 use reqwest::blocking::{Body, Client, Request, Response};
@@ -34,6 +36,7 @@ pub struct SpeedTestServer {
 }
 
 pub fn download_configuration() -> Result<Response, SpeedTestError> {
+    #[cfg(feature = "log")]
     info!("Downloading Configuration from speedtest.net");
 
     let mut _server = mockito::Server::new();
@@ -50,19 +53,23 @@ pub fn download_configuration() -> Result<Response, SpeedTestError> {
         .header(CONNECTION, "close")
         .header(USER_AGENT, ST_USER_AGENT.to_owned())
         .send()?;
+    #[cfg(feature = "log")]
     info!("Downloaded Configuration from speedtest.net");
     Ok(res)
 }
 
 pub fn get_configuration() -> Result<SpeedTestConfig, SpeedTestError> {
     let config_body = download_configuration()?;
+    #[cfg(feature = "log")]
     info!("Parsing Configuration");
     let spt_config = SpeedTestConfig::parse(&(config_body.text()?))?;
+    #[cfg(feature = "log")]
     info!("Parsed Configuration");
     Ok(spt_config)
 }
 
 pub fn download_server_list() -> Result<Response, SpeedTestError> {
+    #[cfg(feature = "log")]
     info!("Download Server List");
     let mut _server = mockito::Server::new();
 
@@ -77,6 +84,7 @@ pub fn download_server_list() -> Result<Response, SpeedTestError> {
         .header(CONNECTION, "close")
         .header(USER_AGENT, ST_USER_AGENT)
         .send()?;
+    #[cfg(feature = "log")]
     info!("Downloaded Server List");
     Ok(server_res)
 }
@@ -85,9 +93,11 @@ pub fn get_server_list_with_config(
     config: &SpeedTestConfig,
 ) -> Result<SpeedTestServersConfig, SpeedTestError> {
     let config_body = download_server_list()?;
+    #[cfg(feature = "log")]
     info!("Parsing Server List");
     let server_config_string = config_body.text()?;
 
+    #[cfg(feature = "log")]
     info!("Parsed Server List");
     SpeedTestServersConfig::parse_with_config(&server_config_string, config)
 }
@@ -101,6 +111,7 @@ pub struct SpeedTestLatencyTestResult<'a> {
 pub fn get_best_server_based_on_latency(
     servers: &[SpeedTestServer],
 ) -> Result<SpeedTestLatencyTestResult, SpeedTestError> {
+    #[cfg(feature = "log")]
     info!("Testing for fastest server");
     let client = Client::new();
     let mut fastest_server = None;
@@ -117,6 +128,7 @@ pub fn get_best_server_based_on_latency(
                 .ok_or(SpeedTestError::LatencyTestInvalidPath)?
                 .display()
         );
+        #[cfg(feature = "log")]
         info!("Downloading: {:?}", latency_path);
         let mut latency_measurements = vec![];
         for _ in 0..3 {
@@ -128,11 +140,13 @@ pub fn get_best_server_based_on_latency(
                 .send();
             if res.is_err() {
                 // Log the error and continue to the next server.
+                #[cfg(feature = "log")]
                 info!("Error: {:?}", res.err());
                 continue 'server_loop;
             }
             let _ = res?.bytes()?.last();
             let latency_measurement = SystemTime::now().duration_since(start_time)?;
+            #[cfg(feature = "log")]
             info!("Sampled {} ms", latency_measurement.as_millis());
             latency_measurements.push(latency_measurement);
         }
@@ -143,6 +157,7 @@ pub fn get_best_server_based_on_latency(
             .iter()
             .fold(Duration::new(0, 0), |a, &i| a + i)
             / ((latency_measurements.len() as u32) * 2);
+        #[cfg(feature = "log")]
         info!("Trip calculated to {} ms", latency.as_millis());
 
         if latency < fastest_latency {
@@ -150,6 +165,7 @@ pub fn get_best_server_based_on_latency(
             fastest_latency = latency;
         }
     }
+    #[cfg(feature = "log")]
     info!(
         "Fastest Server @ {}ms : {fastest_server:?}",
         fastest_latency.as_millis(),
@@ -184,6 +200,7 @@ pub fn test_download_with_progress_and_config<F>(
 where
     F: Fn() + Send + Sync + 'static,
 {
+    #[cfg(feature = "log")]
     info!("Testing Download speed");
     let root_url = Url::parse(&server.url)?;
 
@@ -238,11 +255,13 @@ where
     // Start Timer
     let start_time = SystemTime::now();
 
+    #[cfg(feature = "log")]
     info!("Download Threads: {}", config.threads.download);
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(config.threads.download)
         .build()?;
 
+    #[cfg(feature = "log")]
     info!("Total to be requested {requests:?}");
 
     let total_transferred_per_thread = pool.install(|| {
@@ -254,6 +273,7 @@ where
                 let client = Client::new();
                 // let downloaded_count = vec![];
                 progress_callback();
+                #[cfg(feature = "log")]
                 info!("Requesting {}", r.url());
                 let mut response = client.execute(r)?;
                 let mut buf = [0u8; 10240];
@@ -305,6 +325,7 @@ pub fn test_upload_with_progress_and_config<F>(
 where
     F: Fn() + Send + Sync + 'static,
 {
+    #[cfg(feature = "log")]
     info!("Testing Upload speed");
 
     let mut sizes = vec![];
@@ -346,11 +367,13 @@ where
     // Start Timer
     let start_time = SystemTime::now();
 
+    #[cfg(feature = "log")]
     info!("Upload Threads: {}", config.threads.upload);
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(config.threads.upload)
         .build()?;
 
+    #[cfg(feature = "log")]
     info!("Total to be requested {:?}", requests.len());
     let total_transferred_per_thread = pool.install(|| {
         requests
@@ -365,6 +388,7 @@ where
                     && !early_termination.load(Ordering::Relaxed)
                 {
                     let client = Client::new();
+                    #[cfg(feature = "log")]
                     info!("Requesting {}", r.request.url());
                     let response = client.execute(r.request);
                     if response.is_err() {
@@ -415,17 +439,22 @@ impl SpeedTestResult<'_, '_, '_> {
 }
 
 pub fn get_share_url(speedtest_result: &SpeedTestResult) -> Result<String, SpeedTestError> {
+    #[cfg(feature = "log")]
     info!("Generating share URL");
 
     let download = speedtest_result
         .download_measurement
         .map_or(0, |x| x.kbps());
+    #[cfg(feature = "log")]
     info!("Download parameter is {download:?}");
     let upload = speedtest_result.upload_measurement.map_or(0, |x| x.kbps());
+    #[cfg(feature = "log")]
     info!("Upload parameter is {upload:?}");
     let server = speedtest_result.server.id;
+    #[cfg(feature = "log")]
     info!("Server parameter is {server:?}");
     let ping = speedtest_result.latency_measurement.latency;
+    #[cfg(feature = "log")]
     info!("Ping parameter is {ping:?}");
 
     let pairs = [
@@ -444,6 +473,7 @@ pub fn get_share_url(speedtest_result: &SpeedTestResult) -> Result<String, Speed
         .extend_pairs(pairs.iter())
         .finish();
 
+    #[cfg(feature = "log")]
     info!("Share Body Request: {body:?}");
 
     let client = Client::new();
