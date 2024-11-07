@@ -28,6 +28,9 @@ fn to_radians(degree: f32) -> f32 {
 mod tests {
     use super::*;
 
+    #[cfg(feature = "log")]
+    use tracing::debug;
+
     #[test]
     fn test_distance() {
         let origin = EarthLocation {
@@ -40,7 +43,8 @@ mod tests {
         };
         let distance = compute_distance(&origin, &destination);
         let diff = (distance - 8255.1).abs();
-        println!("distance: {distance} diff: {diff}");
+        #[cfg(feature = "log")]
+        debug!("distance: {distance} diff: {diff}");
         assert!(diff < 0.2);
     }
 }

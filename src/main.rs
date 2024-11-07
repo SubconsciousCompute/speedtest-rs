@@ -12,7 +12,7 @@ use std::io::{self, Write};
 use url::Url;
 
 #[cfg(feature = "log")]
-use tracing::info;
+use tracing::debug;
 #[cfg(feature = "log")]
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
@@ -62,7 +62,6 @@ struct Cli {
 }
 
 fn main() -> Result<(), error::SpeedTestError> {
-
     #[cfg(feature = "log")]
     tracing_subscriber::registry()
         .with(fmt::layer())
@@ -73,16 +72,19 @@ fn main() -> Result<(), error::SpeedTestError> {
 
     // This appears to be purely informational.
     if matches.csv_header {
+        #[allow(unused)]
         let results = speedtest_csv::SpeedTestCsvResult::default();
 
-        println!("{}", results.header_serialize());
+        #[cfg(feature = "log")]
+        debug!("{}", results.header_serialize());
         return Ok(());
     }
 
     let machine_format = matches.csv;
 
     if !matches.simple && !machine_format {
-        println!("Retrieving speedtest.net configuration...");
+        #[cfg(feature = "log")]
+        debug!("Retrieving speedtest.net configuration...");
     }
     let mut config = speedtest::get_configuration()?;
 
@@ -122,14 +124,17 @@ fn main() -> Result<(), error::SpeedTestError> {
         }]
     } else {
         if !matches.simple && !machine_format {
-            println!("Retrieving speedtest.net server list...");
+            #[cfg(feature = "log")]
+            debug!("Retrieving speedtest.net server list...");
         }
         let server_list = speedtest::get_server_list_with_config(&config)?;
         server_list_sorted = server_list.servers_sorted_by_distance(&config);
 
         if matches.list {
+            #[allow(unused)]
             for server in server_list_sorted {
-                println!(
+                #[cfg(feature = "log")]
+                debug!(
                     "{:4}) {} ({}, {}) [{}]",
                     server.id,
                     server.sponsor,
@@ -143,26 +148,29 @@ fn main() -> Result<(), error::SpeedTestError> {
             return Ok(());
         }
         if !matches.simple && !machine_format {
-            println!(
+            #[cfg(feature = "log")]
+            debug!(
                 "Testing from {} ({})...",
                 config.client.isp, config.client.ip
             );
-            println!("Selecting best server based on latency...");
+            #[cfg(feature = "log")]
+            debug!("Selecting best server based on latency...");
         }
 
         #[cfg(feature = "log")]
-        info!("Five Closest Servers");
+        debug!("Five Closest Servers");
         server_list_sorted.truncate(5);
         for _server in &server_list_sorted {
             #[cfg(feature = "log")]
-            info!("Close Server: {_server:?}");
+            debug!("Close Server: {_server:?}");
         }
     }
     let latency_test_result = speedtest::get_best_server_based_on_latency(&server_list_sorted[..])?;
 
     if !machine_format {
         if !matches.simple {
-            println!(
+            #[cfg(feature = "log")]
+            debug!(
                 "Hosted by {} ({}){}: {}.{} ms",
                 latency_test_result.server.sponsor,
                 latency_test_result.server.name,
@@ -174,7 +182,8 @@ fn main() -> Result<(), error::SpeedTestError> {
                 latency_test_result.latency.as_micros() % 1000,
             );
         } else {
-            println!(
+            #[cfg(feature = "log")]
+            debug!(
                 "Ping: {}.{} ms",
                 latency_test_result.latency.as_millis(),
                 latency_test_result.latency.as_millis() % 1000,
@@ -195,7 +204,8 @@ fn main() -> Result<(), error::SpeedTestError> {
                 print_dot,
                 &mut config,
             )?;
-            println!();
+            #[cfg(feature = "log")]
+            debug!();
         } else {
             inner_download_measurement =
                 speedtest::test_download_with_progress_and_config(best_server, || {}, &mut config)?;
@@ -203,12 +213,14 @@ fn main() -> Result<(), error::SpeedTestError> {
 
         if !machine_format {
             if matches.bytes {
-                println!(
+                #[cfg(feature = "log")]
+                debug!(
                     "Download: {:.2} Mbyte/s",
                     ((inner_download_measurement.kbps() / 8) as f32 / 1000.00)
                 );
             } else {
-                println!(
+                #[cfg(feature = "log")]
+                debug!(
                     "Download: {:.2} Mbit/s",
                     (inner_download_measurement.kbps()) as f32 / 1000.00
                 );
@@ -227,7 +239,8 @@ fn main() -> Result<(), error::SpeedTestError> {
             print!("Testing upload speed");
             inner_upload_measurement =
                 speedtest::test_upload_with_progress_and_config(best_server, print_dot, &config)?;
-            println!();
+            #[cfg(feature = "log")]
+            debug!();
         } else {
             inner_upload_measurement =
                 speedtest::test_upload_with_progress_and_config(best_server, || {}, &config)?;
@@ -235,12 +248,14 @@ fn main() -> Result<(), error::SpeedTestError> {
 
         if !machine_format {
             if matches.bytes {
-                println!(
+                #[cfg(feature = "log")]
+                debug!(
                     "Upload: {:.2} Mbyte/s",
                     ((inner_upload_measurement.kbps() / 8) as f32 / 1000.00)
                 );
             } else {
-                println!(
+                #[cfg(feature = "log")]
+                debug!(
                     "Upload: {:.2} Mbit/s",
                     (inner_upload_measurement.kbps() as f32 / 1000.00)
                 );
@@ -294,10 +309,10 @@ fn main() -> Result<(), error::SpeedTestError> {
     }
 
     if matches.share && !machine_format {
-
         #[cfg(feature = "log")]
-        info!("Share Request {speedtest_result:?}",);
-        println!(
+        debug!("Share Request {speedtest_result:?}",);
+        #[cfg(feature = "log")]
+        debug!(
             "Share results: {}",
             speedtest::get_share_url(&speedtest_result)?
         );
@@ -310,7 +325,8 @@ fn main() -> Result<(), error::SpeedTestError> {
             && ((download_measurement.kbps() as f32 / 1000.00) > 200.0
                 || (upload_measurement.kbps() as f32 / 1000.00) > 200.0)
         {
-            println!("WARNING: This tool may not be accurate for high bandwidth connections! Consider using a socket-based client alternative.")
+            #[cfg(feature = "log")]
+            debug!("WARNING: This tool may not be accurate for high bandwidth connections! Consider using a socket-based client alternative.")
         }
     }
     Ok(())
