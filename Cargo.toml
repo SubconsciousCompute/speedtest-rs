@@ -18,7 +18,6 @@ name = "speedtest-rs"
 [dependencies]
 clap = { version = "<=4.4", features = ["derive"] }
 chrono = "0.4.38"
-# log = { version = "0.4.22", optional = true }
 url = "2.5.2"
 mockito = "1.5.0"
 md5 = "0.7.0"
@@ -27,8 +26,8 @@ serde = { version = "1.0.210", features = ["derive"] }
 roxmltree = "0.20.0"
 rayon = "1.10.0"
 iter-read = "1.1.0"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter"], optional = true }
-tracing = { version = "0.1.40", optional = true }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+tracing = { version = "0.1.40" }
 
 [dependencies.reqwest]
 version = "0.12"
@@ -36,4 +35,3 @@ features = ["blocking"]
 
 [features]
 rustls-tls = ["reqwest/rustls-tls"]
-log = ["tracing", "tracing-subscriber"]
