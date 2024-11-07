@@ -7,7 +7,8 @@ use std::{
     time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
-use tracing::info;
+
+use tracing::debug;
 
 use reqwest::blocking::{Body, Client, Request, Response};
 use reqwest::header::{HeaderValue, CONNECTION, CONTENT_TYPE, REFERER, USER_AGENT};
@@ -34,7 +35,8 @@ pub struct SpeedTestServer {
 }
 
 pub fn download_configuration() -> Result<Response, SpeedTestError> {
-    info!("Downloading Configuration from speedtest.net");
+
+    debug!("Downloading Configuration from speedtest.net");
 
     let mut _server = mockito::Server::new();
 
@@ -50,20 +52,24 @@ pub fn download_configuration() -> Result<Response, SpeedTestError> {
         .header(CONNECTION, "close")
         .header(USER_AGENT, ST_USER_AGENT.to_owned())
         .send()?;
-    info!("Downloaded Configuration from speedtest.net");
+
+    debug!("Downloaded Configuration from speedtest.net");
     Ok(res)
 }
 
 pub fn get_configuration() -> Result<SpeedTestConfig, SpeedTestError> {
     let config_body = download_configuration()?;
-    info!("Parsing Configuration");
+
+    debug!("Parsing Configuration");
     let spt_config = SpeedTestConfig::parse(&(config_body.text()?))?;
-    info!("Parsed Configuration");
+
+    debug!("Parsed Configuration");
     Ok(spt_config)
 }
 
 pub fn download_server_list() -> Result<Response, SpeedTestError> {
-    info!("Download Server List");
+
+    debug!("Download Server List");
     let mut _server = mockito::Server::new();
 
     #[cfg(not(test))]
@@ -77,7 +83,8 @@ pub fn download_server_list() -> Result<Response, SpeedTestError> {
         .header(CONNECTION, "close")
         .header(USER_AGENT, ST_USER_AGENT)
         .send()?;
-    info!("Downloaded Server List");
+
+    debug!("Downloaded Server List");
     Ok(server_res)
 }
 
@@ -85,10 +92,12 @@ pub fn get_server_list_with_config(
     config: &SpeedTestConfig,
 ) -> Result<SpeedTestServersConfig, SpeedTestError> {
     let config_body = download_server_list()?;
-    info!("Parsing Server List");
+
+    debug!("Parsing Server List");
     let server_config_string = config_body.text()?;
 
-    info!("Parsed Server List");
+
+    debug!("Parsed Server List");
     SpeedTestServersConfig::parse_with_config(&server_config_string, config)
 }
 
@@ -101,7 +110,8 @@ pub struct SpeedTestLatencyTestResult<'a> {
 pub fn get_best_server_based_on_latency(
     servers: &[SpeedTestServer],
 ) -> Result<SpeedTestLatencyTestResult, SpeedTestError> {
-    info!("Testing for fastest server");
+
+    debug!("Testing for fastest server");
     let client = Client::new();
     let mut fastest_server = None;
     let mut fastest_latency = Duration::new(u64::MAX, 0);
@@ -117,7 +127,8 @@ pub fn get_best_server_based_on_latency(
                 .ok_or(SpeedTestError::LatencyTestInvalidPath)?
                 .display()
         );
-        info!("Downloading: {:?}", latency_path);
+
+        debug!("Downloading: {:?}", latency_path);
         let mut latency_measurements = vec![];
         for _ in 0..3 {
             let start_time = SystemTime::now();
@@ -128,12 +139,14 @@ pub fn get_best_server_based_on_latency(
                 .send();
             if res.is_err() {
                 // Log the error and continue to the next server.
-                info!("Error: {:?}", res.err());
+
+                debug!("Error: {:?}", res.err());
                 continue 'server_loop;
             }
             let _ = res?.bytes()?.last();
             let latency_measurement = SystemTime::now().duration_since(start_time)?;
-            info!("Sampled {} ms", latency_measurement.as_millis());
+
+            debug!("Sampled {} ms", latency_measurement.as_millis());
             latency_measurements.push(latency_measurement);
         }
         // Divide by the double to get the non-RTT time but the trip time.
@@ -143,14 +156,16 @@ pub fn get_best_server_based_on_latency(
             .iter()
             .fold(Duration::new(0, 0), |a, &i| a + i)
             / ((latency_measurements.len() as u32) * 2);
-        info!("Trip calculated to {} ms", latency.as_millis());
+
+        debug!("Trip calculated to {} ms", latency.as_millis());
 
         if latency < fastest_latency {
             fastest_server = Some(server);
             fastest_latency = latency;
         }
     }
-    info!(
+
+    debug!(
         "Fastest Server @ {}ms : {fastest_server:?}",
         fastest_latency.as_millis(),
     );
@@ -184,7 +199,8 @@ pub fn test_download_with_progress_and_config<F>(
 where
     F: Fn() + Send + Sync + 'static,
 {
-    info!("Testing Download speed");
+
+    debug!("Testing Download speed");
     let root_url = Url::parse(&server.url)?;
 
     let mut urls = vec![];
@@ -238,12 +254,14 @@ where
     // Start Timer
     let start_time = SystemTime::now();
 
-    info!("Download Threads: {}", config.threads.download);
+
+    debug!("Download Threads: {}", config.threads.download);
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(config.threads.download)
         .build()?;
 
-    info!("Total to be requested {requests:?}");
+
+    debug!("Total to be requested {requests:?}");
 
     let total_transferred_per_thread = pool.install(|| {
         requests
@@ -254,7 +272,8 @@ where
                 let client = Client::new();
                 // let downloaded_count = vec![];
                 progress_callback();
-                info!("Requesting {}", r.url());
+
+                debug!("Requesting {}", r.url());
                 let mut response = client.execute(r)?;
                 let mut buf = [0u8; 10240];
                 let mut read_amounts = vec![];
@@ -305,7 +324,8 @@ pub fn test_upload_with_progress_and_config<F>(
 where
     F: Fn() + Send + Sync + 'static,
 {
-    info!("Testing Upload speed");
+
+    debug!("Testing Upload speed");
 
     let mut sizes = vec![];
     for &size in &config.sizes.upload {
@@ -346,12 +366,14 @@ where
     // Start Timer
     let start_time = SystemTime::now();
 
-    info!("Upload Threads: {}", config.threads.upload);
+
+    debug!("Upload Threads: {}", config.threads.upload);
     let pool = rayon::ThreadPoolBuilder::new()
         .num_threads(config.threads.upload)
         .build()?;
 
-    info!("Total to be requested {:?}", requests.len());
+
+    debug!("Total to be requested {:?}", requests.len());
     let total_transferred_per_thread = pool.install(|| {
         requests
             .into_iter()
@@ -365,7 +387,8 @@ where
                     && !early_termination.load(Ordering::Relaxed)
                 {
                     let client = Client::new();
-                    info!("Requesting {}", r.request.url());
+
+                    debug!("Requesting {}", r.request.url());
                     let response = client.execute(r.request);
                     if response.is_err() {
                         return Ok(r.size);
@@ -415,18 +438,23 @@ impl SpeedTestResult<'_, '_, '_> {
 }
 
 pub fn get_share_url(speedtest_result: &SpeedTestResult) -> Result<String, SpeedTestError> {
-    info!("Generating share URL");
+
+    debug!("Generating share URL");
 
     let download = speedtest_result
         .download_measurement
         .map_or(0, |x| x.kbps());
-    info!("Download parameter is {download:?}");
+
+    debug!("Download parameter is {download:?}");
     let upload = speedtest_result.upload_measurement.map_or(0, |x| x.kbps());
-    info!("Upload parameter is {upload:?}");
+
+    debug!("Upload parameter is {upload:?}");
     let server = speedtest_result.server.id;
-    info!("Server parameter is {server:?}");
+
+    debug!("Server parameter is {server:?}");
     let ping = speedtest_result.latency_measurement.latency;
-    info!("Ping parameter is {ping:?}");
+
+    debug!("Ping parameter is {ping:?}");
 
     let pairs = [
         ("download", download.to_string()),
@@ -444,7 +472,8 @@ pub fn get_share_url(speedtest_result: &SpeedTestResult) -> Result<String, Speed
         .extend_pairs(pairs.iter())
         .finish();
 
-    info!("Share Body Request: {body:?}");
+
+    debug!("Share Body Request: {body:?}");
 
     let client = Client::new();
     let res = client
@@ -484,12 +513,14 @@ mod tests {
             size: (6096 * 100) as usize,
             duration: Duration::new(1, 0),
         };
-        println!("Download: {:?}", download_measurement);
+
+        debug!("Download: {:?}", download_measurement);
         let upload_measurement = SpeedMeasurement {
             size: (1861 * 100) as usize,
             duration: Duration::new(1, 0),
         };
-        println!("Upload: {:?}", upload_measurement);
+
+        debug!("Upload: {:?}", upload_measurement);
         let server = SpeedTestServer {
             country: "".to_owned(),
             host: "".to_owned(),
@@ -503,12 +534,14 @@ mod tests {
             sponsor: "".to_owned(),
             url: "".to_owned(),
         };
-        println!("Server: {server:?}");
+
+        debug!("Server: {server:?}");
         let latency_measurement = SpeedTestLatencyTestResult {
             server: &server,
             latency: Duration::from_millis(26),
         };
-        println!("Latency: {latency_measurement:?}");
+
+        debug!("Latency: {latency_measurement:?}");
         let request = SpeedTestResult {
             download_measurement: Some(&download_measurement),
             upload_measurement: Some(&upload_measurement),
